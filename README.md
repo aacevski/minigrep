@@ -11,5 +11,5 @@ cargo run -- <query> <file_path>
 2. To grep the stdout of a command:
 
 ```sh
-cargo run -- <command> 
+cargo run -- <command> <query> 
 ```

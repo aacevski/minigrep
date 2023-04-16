@@ -1,5 +1,6 @@
 use std::io::{BufRead, BufReader};
 
+/// List of commands that will be executed in the terminal and the output will be searched.
 pub const STDOUT_COMMANDS: [&str; 2] = ["ls", "pwd"];
 
 pub struct Config {
@@ -9,13 +10,18 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn build(args: &[String]) -> Result<Config, &'static str> {
-        if args.len() < 3 {
-            return Err("not enough arguments");
-        }
+    pub fn build(mut args: impl Iterator<Item = String>) -> Result<Config, &'static str> {
+        args.next();
 
-        let query = args[1].clone();
-        let file_path = args[2].clone();
+        let query = match args.next() {
+            Some(arg) => arg,
+            None => return Err("Didn't get a query string"),
+        };
+
+        let file_path = match args.next() {
+            Some(arg) => arg,
+            None => return Err("Didn't get a file path"),
+        };
 
         let ignore_case = std::env::var("CASE_INSENSITIVE").is_ok();
 
@@ -27,6 +33,21 @@ impl Config {
     }
 }
 
+/// Runs the program and searches for the query in the file, it could be case sensitive or not.
+///
+/// # Examples
+/// ```
+/// use minigrep::run;
+/// use minigrep::Config;
+///
+/// let config = Config {
+///    query: "duct".to_string(),
+///    file_path: "poem.txt".to_string(),
+///    ignore_case: false,
+///};
+///
+/// run(config).unwrap();
+///```
 pub fn run(config: Config) -> Result<(), Box<dyn std::error::Error>> {
     let contents = std::fs::read_to_string(config.file_path)?;
 
@@ -43,6 +64,20 @@ pub fn run(config: Config) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+/// Runs a shell command and searches for the query in the output.
+///
+/// # Examples
+/// ```
+/// use minigrep::run_command;
+/// use minigrep::Config;
+///
+/// let config = Config {
+///   query: "ls".to_string(),
+///   file_path: "poem.txt".to_string(),
+///   ignore_case: false,
+///};
+///
+/// run_command(config).unwrap();
 pub fn run_command(config: Config) -> Result<(), Box<dyn std::error::Error>> {
     let output = std::process::Command::new(config.query)
         .output()
@@ -61,29 +96,53 @@ pub fn run_command(config: Config) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+/// Search for the query in the contents and return the lines that contain it.
+///
+/// # Examples
+///
+/// ```
+/// use minigrep::search;
+///
+/// let query = "duct";
+/// let contents = "\
+/// Rust:
+/// safe, fast, productive.
+/// Pick three.
+/// Duct tape";
+///
+/// assert_eq!(vec!["safe, fast, productive."], search(query, contents));
+/// ```
 pub fn search<'a>(query: &str, contents: &'a str) -> Vec<&'a str> {
-    let mut results = Vec::new();
-
-    for line in contents.lines() {
-        if line.contains(query) {
-            results.push(line);
-        }
-    }
-
-    results
+    contents
+        .lines()
+        .filter(|line| line.contains(query))
+        .collect()
 }
 
+/// Search for the query in the contents and return the lines that contain it, ignoring the case.
+///
+/// # Examples
+/// ```
+/// use minigrep::search_case_insensitive;
+///
+/// let query = "rUsT";
+/// let contents = "\
+/// Rust:
+/// safe, fast, productive.
+/// Pick three.
+/// Trust me.";
+///
+/// assert_eq!(
+///    vec!["Rust:", "Trust me."],
+///    search_case_insensitive(query, contents)
+/// );
+/// ```
 pub fn search_case_insensitive<'a>(query: &str, contents: &'a str) -> Vec<&'a str> {
     let query = query.to_lowercase();
-    let mut results = Vec::new();
-
-    for line in contents.lines() {
-        if line.to_lowercase().contains(&query) {
-            results.push(line);
-        }
-    }
-
-    results
+    contents
+        .lines()
+        .filter(|line| line.to_lowercase().contains(&query))
+        .collect()
 }
 
 #[cfg(test)]
